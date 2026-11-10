@@ -1,6 +1,6 @@
 /**
  * Database Seed Verification Tests
- * Complies with PRD Section 13, Section 16 & ADR-002, ADR-005.
+ * Complies with PRD Section 13, Section 16 & ADR-002, ADR-003, ADR-005.
  */
 
 import { describe, it, expect } from "vitest";
@@ -24,7 +24,7 @@ describe("Database Seeding Integration Verification", () => {
     expect(permCount).toBe(ALL_PERMISSIONS.length);
 
     const rolePermCount = await prisma.rolePermission.count();
-    expect(rolePermCount).toBeGreaterThanOrEqual(100);
+    expect(rolePermCount).toBeGreaterThanOrEqual(160);
   });
 
   it("should verify default admin user with SUPER_ADMIN role", async () => {
@@ -84,9 +84,10 @@ describe("Database Seeding Integration Verification", () => {
     expect(allCategoriesCount).toBe(11);
   });
 
-  it("should verify catalog products, variants, minor-unit prices, and inventory baseline", async () => {
+  it("should verify catalog products, variants, minor-unit prices, and inventory baselines", async () => {
     const products = await prisma.product.findMany({
       include: {
+        media: true,
         variants: {
           include: {
             prices: true,
@@ -96,30 +97,61 @@ describe("Database Seeding Integration Verification", () => {
       },
     });
 
-    expect(products.length).toBeGreaterThanOrEqual(3);
+    expect(products.length).toBe(8);
+
+    let totalVariants = 0;
+    let inStockCount = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+    let thumbnailCount = 0;
 
     for (const product of products) {
-      expect(product.variants.length).toBeGreaterThanOrEqual(1);
+      expect(product.variants.length).toBeGreaterThanOrEqual(2);
+      expect(product.media.length).toBeGreaterThanOrEqual(1);
+
+      const hasThumbnail = product.media.some((m) => m.isThumbnail);
+      if (hasThumbnail) thumbnailCount++;
+
       for (const variant of product.variants) {
+        totalVariants++;
         expect(variant.prices.length).toBeGreaterThanOrEqual(1);
+
         const price = variant.prices[0];
         expect(price.amountMinor).toBeGreaterThan(0);
         expect(Number.isInteger(price.amountMinor)).toBe(true);
 
         expect(variant.inventory).not.toBeNull();
-        expect(variant.inventory?.onHandQuantity).toBeGreaterThan(0);
-        expect(variant.inventory?.safetyStock).toBeGreaterThanOrEqual(5);
+        const onHand = variant.inventory!.onHandQuantity;
+        const safety = variant.inventory!.safetyStock;
+
+        expect(onHand).toBeGreaterThanOrEqual(0);
+        expect(safety).toBeGreaterThanOrEqual(3);
         expect(variant.inventory?.reservedQuantity).toBe(0);
+
+        if (onHand === 0) {
+          outOfStockCount++;
+        } else if (onHand <= safety) {
+          lowStockCount++;
+        } else {
+          inStockCount++;
+        }
       }
     }
+
+    expect(totalVariants).toBe(21);
+    expect(thumbnailCount).toBe(8); // Every product has a thumbnail
+    expect(inStockCount).toBeGreaterThanOrEqual(10);
+    expect(lowStockCount).toBeGreaterThanOrEqual(4);
+    expect(outOfStockCount).toBeGreaterThanOrEqual(4);
   });
 
-  it("should verify stock movements audit ledger matches initial stock", async () => {
+  it("should verify stock movements audit ledger matches initial positive stock", async () => {
     const stockMovements = await prisma.stockMovement.findMany({
       where: { reason: "INITIAL_SEED" },
     });
 
-    expect(stockMovements.length).toBeGreaterThanOrEqual(5);
+    // Stock movements are recorded for all non-zero initial variants (16 in-stock / low-stock variants)
+    expect(stockMovements.length).toBe(16);
     for (const movement of stockMovements) {
       expect(movement.quantityDelta).toBeGreaterThan(0);
       expect(movement.actorId).toBeDefined();

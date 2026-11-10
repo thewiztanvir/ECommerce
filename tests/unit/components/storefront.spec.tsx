@@ -31,9 +31,9 @@ describe("Storefront Shell & Responsive Navigation Unit Tests", () => {
       expect(html).toContain("Electronics");
       expect(html).toContain("Apparel");
       expect(html).toContain("Home &amp; Living");
-      expect(html).toContain('href="/categories/electronics"');
-      expect(html).toContain('href="/categories/apparel"');
-      expect(html).toContain('href="/categories/home-living"');
+      expect(html).toContain('href="/category/electronics"');
+      expect(html).toContain('href="/category/apparel"');
+      expect(html).toContain('href="/category/home-living"');
     });
 
     it("should display search bars with submit buttons and accessible labels", () => {

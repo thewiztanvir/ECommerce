@@ -20,9 +20,9 @@ export interface MobileNavProps {
 }
 
 const defaultCategories: CategoryItem[] = [
-  { name: "Electronics", href: "/categories/electronics", description: "Audio, computing & smart gadgets" },
-  { name: "Apparel", href: "/categories/apparel", description: "Modern everyday essentials & outerwear" },
-  { name: "Home & Living", href: "/categories/home-living", description: "Design-forward interior & kitchenware" },
+  { name: "Electronics", href: "/category/electronics", description: "Audio, computing & smart gadgets" },
+  { name: "Apparel", href: "/category/apparel", description: "Modern everyday essentials & outerwear" },
+  { name: "Home & Living", href: "/category/home-living", description: "Design-forward interior & kitchenware" },
   { name: "New Arrivals", href: "/products?sort=newest", description: "Latest seasonal product drops" },
 ];
 

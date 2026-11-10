@@ -30,9 +30,9 @@ export interface HeaderProps {
 }
 
 const mainCategories: CategoryItem[] = [
-  { name: "Electronics", href: "/categories/electronics", description: "Audio, gadgets & laptops" },
-  { name: "Apparel", href: "/categories/apparel", description: "Everyday essentials & seasonal collections" },
-  { name: "Home & Living", href: "/categories/home-living", description: "Furniture, decor & kitchen accessories" },
+  { name: "Electronics", href: "/category/electronics", description: "Audio, gadgets & laptops" },
+  { name: "Apparel", href: "/category/apparel", description: "Everyday essentials & seasonal collections" },
+  { name: "Home & Living", href: "/category/home-living", description: "Furniture, decor & kitchen accessories" },
 ];
 
 export function Header({
