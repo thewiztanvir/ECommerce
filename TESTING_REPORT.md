@@ -17,11 +17,11 @@ The testing architecture spans three automated layers:
 
 | Test ID | Critical Scenario Description | Target Test File | Priority | Automation Status | Result |
 |---|---|---|---|---|---|
-| **TC-CRIT-01** | Customer adds an in-stock variant to cart. | `tests/unit/cart.service.spec.ts` | P0 | Planned (Phase 3) | Pending |
-| **TC-CRIT-02** | Customer attempts to add more units than available; rejected gracefully. | `tests/unit/cart.service.spec.ts` | P0 | Planned (Phase 3) | Pending |
+| **TC-CRIT-01** | Customer adds an in-stock variant to cart. | `tests/integration/cart.api.spec.ts` | P0 | Automated (Phase 3) | **PASSED** |
+| **TC-CRIT-02** | Customer attempts to add more units than available; rejected gracefully. | `tests/integration/cart.api.spec.ts` | P0 | Automated (Phase 3) | **PASSED** |
 | **TC-CRIT-03** | Concurrent checkout for final unit; exactly one reservation succeeds. | `tests/integration/inventory.concurrency.spec.ts` | P0 | Planned (Phase 3) | Pending |
-| **TC-CRIT-04** | Price changes after item enters cart; checkout reflects authoritative price. | `tests/unit/pricing.engine.spec.ts` | P0 | Planned (Phase 3) | Pending |
-| **TC-CRIT-05** | Coupon expires between cart and checkout; checkout rejects it. | `tests/unit/promotions.service.spec.ts` | P0 | Planned (Phase 3) | Pending |
+| **TC-CRIT-04** | Price changes after item enters cart; checkout reflects authoritative price. | `tests/integration/cart.api.spec.ts` | P0 | Automated (Phase 3) | **PASSED** |
+| **TC-CRIT-05** | Coupon expires between cart and checkout; checkout rejects it. | `tests/integration/cart.api.spec.ts` | P0 | Automated (Phase 3) | **PASSED** |
 | **TC-CRIT-06** | Customer double-clicks place-order button; only one order created. | `tests/integration/checkout.idempotency.spec.ts` | P0 | Planned (Phase 4) | Pending |
 | **TC-CRIT-07** | Payment provider sends duplicate webhook; payment applied exactly once. | `tests/integration/webhooks.spec.ts` | P0 | Planned (Phase 4) | Pending |
 | **TC-CRIT-08** | Payment webhook arrives before browser redirect; order state remains valid. | `tests/integration/webhooks.spec.ts` | P0 | Planned (Phase 4) | Pending |

@@ -35,7 +35,7 @@ async function main() {
   // ===========================================================================
   // 1. Seed Granular Permissions
   // ===========================================================================
-  console.log("  ↳ [1/6] Seeding granular permissions...");
+  console.log("  ↳ [1/7] Seeding granular permissions...");
   const permMap = new Map<string, string>();
 
   for (const permKey of ALL_PERMISSIONS) {
@@ -54,7 +54,7 @@ async function main() {
   // ===========================================================================
   // 2. Seed Roles & Role-Permission Matrix (PRD Section 13.2)
   // ===========================================================================
-  console.log("  ↳ [2/6] Seeding RBAC roles & permission matrix...");
+  console.log("  ↳ [2/7] Seeding RBAC roles & permission matrix...");
   const roleNames = [
     ROLES.SUPER_ADMIN,
     ROLES.STORE_ADMIN,
@@ -119,7 +119,7 @@ async function main() {
   // ===========================================================================
   // 3. Seed Default Super Admin Account
   // ===========================================================================
-  console.log("  ↳ [3/6] Seeding Super Admin account (admin@ecommerce.test)...");
+  console.log("  ↳ [3/7] Seeding Super Admin account (admin@ecommerce.test)...");
   const adminSalt = await bcrypt.genSalt(12);
   const adminPasswordHash = await bcrypt.hash("Admin12345!", adminSalt);
 
@@ -172,7 +172,7 @@ async function main() {
   // ===========================================================================
   // 4. Seed Default Test Customer Account
   // ===========================================================================
-  console.log("  ↳ [4/6] Seeding Customer account (customer@ecommerce.test)...");
+  console.log("  ↳ [4/7] Seeding Customer account (customer@ecommerce.test)...");
   const customerSalt = await bcrypt.genSalt(12);
   const customerPasswordHash = await bcrypt.hash("Customer12345!", customerSalt);
 
@@ -263,7 +263,7 @@ async function main() {
   // ===========================================================================
   // 5. Seed Category Taxonomy Hierarchy
   // ===========================================================================
-  console.log("  ↳ [5/6] Seeding category hierarchy...");
+  console.log("  ↳ [5/7] Seeding category hierarchy...");
   const categoriesData = [
     {
       name: "Electronics",
@@ -335,7 +335,7 @@ async function main() {
   // ===========================================================================
   // 6. Seed Realistic Catalog Products, Variants, Media, Prices & Inventory
   // ===========================================================================
-  console.log("  ↳ [6/6] Seeding rich catalog products, variants, media & stock ledgers...");
+  console.log("  ↳ [6/7] Seeding rich catalog products, variants, media & stock ledgers...");
 
   interface SeedMediaSpec {
     url: string;
@@ -889,6 +889,87 @@ async function main() {
   console.log(
     `     ✓ Verified ${totalProducts} products, ${totalVariants} sellable SKUs, ${totalMedia} media assets, and stock ledgers.`
   );
+
+  // ===========================================================================
+  // 7. Seed Test Promotion Coupons (PRD Section 10 / FR-PROMO-001 - FR-PROMO-005)
+  // ===========================================================================
+  console.log("  ↳ [7/7] Seeding test promotion coupons...");
+
+  const now = new Date();
+  const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+
+  const promotionsData = [
+    {
+      code: "SAVE10",
+      type: "PERCENTAGE",
+      valueMinor: 1000, // 10% discount in basis points (1000 bps = 10%)
+      minOrderMinor: 3000, // Minimum $30.00 subtotal (3000 cents)
+      maxUses: 1000,
+      startsAt: oneMonthAgo,
+      endsAt: oneYearFromNow,
+      status: "ACTIVE",
+    },
+    {
+      code: "WELCOME20",
+      type: "FIXED_AMOUNT",
+      valueMinor: 2000, // Fixed $20.00 discount (2000 cents)
+      minOrderMinor: 10000, // Minimum $100.00 subtotal (10000 cents)
+      maxUses: 500,
+      startsAt: oneMonthAgo,
+      endsAt: oneYearFromNow,
+      status: "ACTIVE",
+    },
+    {
+      code: "EXPIRED50",
+      type: "PERCENTAGE",
+      valueMinor: 5000, // 50% discount in basis points
+      minOrderMinor: 0,
+      maxUses: 100,
+      startsAt: sixtyDaysAgo,
+      endsAt: tenDaysAgo, // Expired 10 days ago (for expiration validation tests)
+      status: "ACTIVE",
+    },
+    {
+      code: "DISABLED15",
+      type: "PERCENTAGE",
+      valueMinor: 1500, // 15% discount in basis points
+      minOrderMinor: 2500, // Minimum $25.00 subtotal
+      maxUses: 200,
+      startsAt: oneMonthAgo,
+      endsAt: oneYearFromNow,
+      status: "DISABLED", // Disabled status (for status validation tests)
+    },
+  ];
+
+  for (const promo of promotionsData) {
+    await prisma.promotion.upsert({
+      where: { code: promo.code },
+      update: {
+        type: promo.type,
+        valueMinor: promo.valueMinor,
+        minOrderMinor: promo.minOrderMinor,
+        maxUses: promo.maxUses,
+        startsAt: promo.startsAt,
+        endsAt: promo.endsAt,
+        status: promo.status,
+      },
+      create: {
+        code: promo.code,
+        type: promo.type,
+        valueMinor: promo.valueMinor,
+        minOrderMinor: promo.minOrderMinor,
+        maxUses: promo.maxUses,
+        usageCount: 0,
+        startsAt: promo.startsAt,
+        endsAt: promo.endsAt,
+        status: promo.status,
+      },
+    });
+  }
+  console.log(`     ✓ Verified ${promotionsData.length} promotional coupons.`);
 
   console.log("✅ Database seeding completed with 100% architectural integrity!");
 }

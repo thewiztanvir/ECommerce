@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MobileNav, CategoryItem } from "./mobile-nav";
+import { useCartOptional } from "@/context/cart-context";
 
 export interface HeaderProps {
   user?: {
@@ -41,6 +42,8 @@ export function Header({
   initialSearchQuery = "",
 }: HeaderProps) {
   const router = useRouter();
+  const cart = useCartOptional();
+  const displayCartCount = cart ? cart.itemCount : (cartItemCount ?? 0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState(initialSearchQuery);
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = React.useState(false);
@@ -266,7 +269,13 @@ export function Header({
             {/* Cart Button */}
             <Link
               href="/cart"
-              aria-label={`Shopping cart with ${cartItemCount} items`}
+              onClick={(e) => {
+                if (cart) {
+                  e.preventDefault();
+                  cart.openCartDrawer();
+                }
+              }}
+              aria-label={`Shopping cart with ${displayCartCount} items`}
               className="relative inline-flex h-11 min-h-touch min-w-touch items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 sm:px-3.5 text-slate-800 shadow-sm hover:bg-slate-50 hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 transition-colors"
             >
               <ShoppingBag className="h-5 w-5 text-slate-700" aria-hidden="true" />
@@ -276,7 +285,7 @@ export function Header({
                 aria-atomic="true"
                 className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-600 px-1.5 text-xs font-bold text-white leading-none"
               >
-                {cartItemCount}
+                {displayCartCount}
               </span>
             </Link>
           </div>
@@ -320,7 +329,7 @@ export function Header({
         onClose={() => setIsMobileMenuOpen(false)}
         categories={mainCategories}
         user={user}
-        cartItemCount={cartItemCount}
+        cartItemCount={displayCartCount}
       />
     </>
   );

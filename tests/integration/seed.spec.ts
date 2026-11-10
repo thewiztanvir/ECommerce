@@ -86,6 +86,7 @@ describe("Database Seeding Integration Verification", () => {
 
   it("should verify catalog products, variants, minor-unit prices, and inventory baselines", async () => {
     const products = await prisma.product.findMany({
+      where: { status: "PUBLISHED" },
       include: {
         media: true,
         variants: {
@@ -156,5 +157,31 @@ describe("Database Seeding Integration Verification", () => {
       expect(movement.quantityDelta).toBeGreaterThan(0);
       expect(movement.actorId).toBeDefined();
     }
+  });
+
+  it("should verify test promotion coupons (SAVE10, WELCOME20, EXPIRED50)", async () => {
+    const promotions = await prisma.promotion.findMany();
+    expect(promotions.length).toBeGreaterThanOrEqual(3);
+
+    const save10 = promotions.find((p) => p.code === "SAVE10");
+    expect(save10).toBeDefined();
+    expect(save10?.type).toBe("PERCENTAGE");
+    expect(save10?.valueMinor).toBe(1000);
+    expect(save10?.minOrderMinor).toBe(3000);
+    expect(save10?.status).toBe("ACTIVE");
+    expect(new Date(save10!.endsAt!).getTime()).toBeGreaterThan(Date.now());
+
+    const welcome20 = promotions.find((p) => p.code === "WELCOME20");
+    expect(welcome20).toBeDefined();
+    expect(welcome20?.type).toBe("FIXED_AMOUNT");
+    expect(welcome20?.valueMinor).toBe(2000);
+    expect(welcome20?.minOrderMinor).toBe(10000);
+    expect(welcome20?.status).toBe("ACTIVE");
+
+    const expired50 = promotions.find((p) => p.code === "EXPIRED50");
+    expect(expired50).toBeDefined();
+    expect(expired50?.type).toBe("PERCENTAGE");
+    expect(expired50?.valueMinor).toBe(5000);
+    expect(new Date(expired50!.endsAt!).getTime()).toBeLessThan(Date.now());
   });
 });

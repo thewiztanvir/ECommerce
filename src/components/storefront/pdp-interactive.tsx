@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useCart } from "@/context/cart-context";
 import type { CatalogProductDetail, CatalogVariant } from "@/modules/catalog/catalog.service";
 
 export interface PDPInteractiveProps {
@@ -57,9 +58,33 @@ export function PDPInteractive({ product }: PDPInteractiveProps) {
     setQuantity((prev) => Math.min(maxAvailable, prev + 1));
   };
 
+  let cart: ReturnType<typeof useCart> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    cart = useCart();
+  } catch {
+    cart = null;
+  }
+
   const handleAddToCart = () => {
     if (isOutOfStock) return;
     setIsAddingToCart(true);
+
+    if (cart) {
+      cart.addItem({
+        variantId: selectedVariant.id,
+        productId: product.id,
+        productSlug: product.slug,
+        title: product.title,
+        variantTitle: selectedVariant.title,
+        attributes: selectedVariant.attributes,
+        unitPriceMinor: selectedVariant.priceMinor,
+        compareAtPriceMinor: selectedVariant.compareAtMinor,
+        quantity,
+        thumbnailUrl: currentImage.url || null,
+        maxAvailableStock: selectedVariant.availableStock || 10,
+      });
+    }
 
     setTimeout(() => {
       setIsAddingToCart(false);
