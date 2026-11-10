@@ -40,32 +40,39 @@ The testing architecture spans three automated layers:
 
 ## 3. Test Execution Summary & Metrics
 
-### Latest Test Run: Phase 1 Completion (2026-11-10)
+### Latest Test Run: Phase 4 Verification (2026-11-10)
 
 - **Test Framework:** Vitest v3.2.7 (Node.js 22 LTS, SQLite / Prisma)
-- **Total Test Files:** 13 passed / 13 total (100%)
-- **Total Tests:** **229 passed** / 229 total (100% green)
+- **Total Test Files:** 20 passed / 20 total (100%)
+- **Total Tests:** **343 passed** / 343 total (100% green)
 - **Test Failures:** **0**
-- **Execution Duration:** 9.71s
+- **Execution Duration:** 44.52s
 
 ### Test Suite Breakdown
 
 | # | Test Suite File | Category | Tests Passed | Duration | Coverage Scope |
 |---|---|---|---|---|---|
-| 1 | `tests/unit/auth.schema.spec.ts` | Unit | 24 | 26ms | Zod schemas for register, login, reset, address validation |
-| 2 | `tests/unit/money.spec.ts` | Unit | 37 | 64ms | Integer minor units arithmetic, currency checks, rounding half-up |
-| 3 | `tests/unit/session.service.spec.ts` | Unit | 14 | 107ms | Session tokens, cookie parsing, expiration, HMAC signing |
-| 4 | `tests/unit/rbac.guard.spec.ts` | Unit | 22 | 21ms | PRD Section 13 10-role permission matrix & scope evaluations |
-| 5 | `tests/unit/identifiers.spec.ts` | Unit | 22 | 151ms | NanoID reference generators, prefix adherence, collision safety |
-| 6 | `tests/integration/seed.spec.ts` | Integration | 7 | 54ms | Database seed verification (categories, products, roles, admins) |
-| 7 | `tests/integration/rbac.guard.spec.ts` | Integration | 6 | 14ms | Route handler permission guards, 403 enforcement, audit logging |
-| 8 | `tests/unit/db.spec.ts` | Unit | 11 | 15ms | Prisma connection pool singleton, transaction management |
-| 9 | `tests/integration/customers.api.spec.ts` | Integration | 14 | 1215ms | Profile view/edit, address CRUD, IDOR isolation, delete request |
-| 10 | `tests/unit/crypto.spec.ts` | Unit | 18 | 5170ms | Password hashing with unique salts, bcrypt verification |
-| 11 | `tests/integration/auth.api.spec.ts` | Integration | 14 | 4326ms | Registration, login, logout, forgot password, reset flow, anti-enumeration |
-| 12 | `tests/unit/components/ui.spec.tsx` | Unit | 23 | 49ms | UI primitives (Button, Input, Badge, Card) & 10-state tokens |
-| 13 | `tests/unit/components/storefront.spec.tsx` | Unit | 17 | 163ms | Storefront layout (Header, Footer, Navigation drawer, Cart badge) |
-| **Total** | **13 Test Files** | — | **229 Passed** | **9.71s** | **0 Failures, 100% Pass Rate** |
+| 1 | `tests/unit/auth.schema.spec.ts` | Unit | 24 | 38ms | Zod schemas for register, login, reset, address validation |
+| 2 | `tests/unit/money.spec.ts` | Unit | 37 | 51ms | Integer minor units arithmetic, currency checks, rounding half-up |
+| 3 | `tests/unit/session.service.spec.ts` | Unit | 14 | 36ms | Session tokens, cookie parsing, expiration, HMAC signing |
+| 4 | `tests/unit/rbac.guard.spec.ts` | Unit | 22 | 20ms | PRD Section 13 10-role permission matrix & scope evaluations |
+| 5 | `tests/unit/identifiers.spec.ts` | Unit | 22 | 70ms | NanoID reference generators, prefix adherence, collision safety |
+| 6 | `tests/integration/seed.spec.ts` | Integration | 8 | 47ms | Database seed verification (categories, products, roles, admins, promotions) |
+| 7 | `tests/integration/rbac.guard.spec.ts` | Integration | 6 | 11ms | Route handler permission guards, 403 enforcement, audit logging |
+| 8 | `tests/unit/db.spec.ts` | Unit | 11 | 22ms | Prisma connection pool singleton, transaction management |
+| 9 | `tests/integration/customers.api.spec.ts` | Integration | 14 | 1384ms | Profile view/edit, address CRUD, IDOR isolation, delete request |
+| 10 | `tests/unit/crypto.spec.ts` | Unit | 18 | 5845ms | Password hashing with unique salts, bcrypt verification |
+| 11 | `tests/integration/auth.api.spec.ts` | Integration | 14 | 4954ms | Registration, login, logout, forgot password, reset flow, anti-enumeration |
+| 12 | `tests/integration/catalog.api.spec.ts` | Integration | 25 | 409ms | Category navigation, product listing, facets, sorting, PDP, search |
+| 13 | `tests/integration/cart.api.spec.ts` | Integration | 28 | 2676ms | Guest/customer carts, stock checks, limits, coupons (SAVE10, WELCOME20), merging |
+| 14 | `tests/unit/components/ui.spec.tsx` | Unit | 23 | 46ms | UI primitives (Button, Input, Badge, Card) & design tokens |
+| 15 | `tests/unit/components/catalog.spec.tsx` | Unit | 16 | 120ms | Filter bar, product card, pagination, breadcrumbs components |
+| 16 | `tests/unit/components/cart.spec.tsx` | Unit | 12 | 226ms | Cart line item, quantity counter, coupon badge, price breakdown |
+| 17 | `tests/unit/components/storefront.spec.tsx` | Unit | 17 | 195ms | Storefront layout (Header, Footer, Navigation drawer, Cart badge) |
+| 18 | `tests/integration/checkout.api.spec.ts` | Integration | 17 | 851ms | Checkout rates, order idempotency, inventory reservation, payments, webhooks |
+| 19 | `tests/integration/payment.api.spec.ts` | Integration | 4 | 975ms | Payment success/decline, inventory commit, webhook replay protection |
+| 20 | `tests/unit/components/checkout.spec.tsx` | Unit | 11 | 241ms | Checkout form, shipping selection, order summary, submission states |
+| **Total** | **20 Test Files** | — | **343 Passed** | **44.52s** | **0 Failures, 100% Pass Rate** |
 
 ---
 

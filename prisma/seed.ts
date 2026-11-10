@@ -856,6 +856,7 @@ async function main() {
         where: { variantId: variant.id },
         update: {
           onHandQuantity: vSpec.initialStock,
+          reservedQuantity: 0,
           safetyStock: vSpec.safetyStock,
         },
         create: {

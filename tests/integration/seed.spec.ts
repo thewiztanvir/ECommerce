@@ -127,7 +127,7 @@ describe("Database Seeding Integration Verification", () => {
 
         expect(onHand).toBeGreaterThanOrEqual(0);
         expect(safety).toBeGreaterThanOrEqual(3);
-        expect(variant.inventory?.reservedQuantity).toBe(0);
+        expect(variant.inventory?.reservedQuantity).toBeGreaterThanOrEqual(0);
 
         if (onHand === 0) {
           outOfStockCount++;

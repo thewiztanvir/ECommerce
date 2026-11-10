@@ -122,6 +122,58 @@ export function CartProvider({
     }
   }, []);
 
+  // 1b. Asynchronously synchronize with backend database cart (/api/v1/cart)
+  React.useEffect(() => {
+    let isMounted = true;
+    async function syncBackendCart() {
+      try {
+        if (typeof window === "undefined" || !window.fetch) return;
+        const res = await fetch("/api/v1/cart");
+        if (!res.ok) return;
+        const body = await res.json();
+        if (body.success && body.data) {
+          const serverCart = body.data;
+          if (isMounted && Array.isArray(serverCart.items) && serverCart.items.length > 0) {
+            setItems((prev) => {
+              return serverCart.items.map((si: any) => {
+                const match = prev.find((p) => p.variantId === si.variantId);
+                return {
+                  id: si.id,
+                  variantId: si.variantId,
+                  productId: match?.productId,
+                  productSlug: si.productSlug || match?.productSlug || "",
+                  title: si.productTitle || si.title || match?.title || "Product",
+                  variantTitle: si.variantTitle || match?.variantTitle,
+                  attributes: match?.attributes || {},
+                  unitPriceMinor: si.unitPriceMinor,
+                  compareAtPriceMinor: match?.compareAtPriceMinor || null,
+                  quantity: si.quantity,
+                  thumbnailUrl: si.thumbnailUrl || match?.thumbnailUrl || null,
+                  maxAvailableStock: si.availableStock || match?.maxAvailableStock || 10,
+                };
+              });
+            });
+
+            if (serverCart.coupon) {
+              setAppliedCoupon({
+                code: serverCart.coupon.code,
+                discountType: serverCart.coupon.type === "PERCENTAGE" ? "PERCENTAGE" : "FIXED",
+                discountValue: serverCart.coupon.valueMinor,
+                description: serverCart.coupon.code,
+              });
+            }
+          }
+        }
+      } catch {
+        // Non-blocking fallback for offline, SSR, or isolated testing
+      }
+    }
+    syncBackendCart();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // 2. Persist to localStorage on change
   React.useEffect(() => {
     if (!isHydrated) return;
@@ -214,6 +266,34 @@ export function CartProvider({
         return [...prev, newItem];
       });
 
+      // Synchronize with backend database cart (/api/v1/cart/items)
+      if (typeof window !== "undefined" && typeof window.fetch === "function" && item.variantId) {
+        fetch("/api/v1/cart/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            variantId: item.variantId,
+            quantity: item.quantity,
+          }),
+        })
+          .then(async (res) => {
+            if (res.ok) {
+              const data = await res.json();
+              if (data.success && data.data?.items) {
+                setItems((curr) =>
+                  curr.map((ci) => {
+                    const serverMatch = data.data.items.find(
+                      (si: any) => si.variantId === ci.variantId
+                    );
+                    return serverMatch ? { ...ci, id: serverMatch.id } : ci;
+                  })
+                );
+              }
+            }
+          })
+          .catch(() => {});
+      }
+
       // Automatically open drawer on successful addition
       setIsCartDrawerOpen(true);
     },
@@ -235,12 +315,28 @@ export function CartProvider({
           return item;
         })
       );
+
+      // Synchronize with backend database cart (/api/v1/cart/items/[id])
+      if (typeof window !== "undefined" && typeof window.fetch === "function") {
+        fetch(`/api/v1/cart/items/${itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quantity }),
+        }).catch(() => {});
+      }
     },
     []
   );
 
   const removeItem = React.useCallback((itemId: string) => {
     setItems((prev) => prev.filter((item) => item.id !== itemId));
+
+    // Synchronize with backend database cart (/api/v1/cart/items/[id])
+    if (typeof window !== "undefined" && typeof window.fetch === "function") {
+      fetch(`/api/v1/cart/items/${itemId}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
   }, []);
 
   const clearCart = React.useCallback(() => {
@@ -268,6 +364,16 @@ export function CartProvider({
 
     setAppliedCoupon(foundCoupon);
     setCouponSuccess(`Coupon "${normalizedCode}" applied successfully!`);
+
+    // Synchronize with backend database cart (/api/v1/cart/coupon)
+    if (typeof window !== "undefined" && typeof window.fetch === "function") {
+      fetch("/api/v1/cart/coupon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ couponCode: normalizedCode }),
+      }).catch(() => {});
+    }
+
     return true;
   }, []);
 
@@ -275,6 +381,13 @@ export function CartProvider({
     setAppliedCoupon(null);
     setCouponSuccess(null);
     setCouponError(null);
+
+    // Synchronize with backend database cart (/api/v1/cart/coupon)
+    if (typeof window !== "undefined" && typeof window.fetch === "function") {
+      fetch("/api/v1/cart/coupon", {
+        method: "DELETE",
+      }).catch(() => {});
+    }
   }, []);
 
   const openCartDrawer = React.useCallback(() => setIsCartDrawerOpen(true), []);
