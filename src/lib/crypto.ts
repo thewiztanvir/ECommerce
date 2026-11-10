@@ -165,3 +165,8 @@ export function timingSafeEqual(a: string, b: string): boolean {
   }
   return crypto.timingSafeEqual(bufA, bufB);
 }
+
+// Security aliases for compatibility across auth modules
+export const hashOpaqueToken = hashToken;
+export const timingSafeEqualString = timingSafeEqual;
+

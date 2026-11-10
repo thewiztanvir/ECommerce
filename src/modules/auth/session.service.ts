@@ -114,16 +114,27 @@ export interface SessionData {
 }
 
 /**
- * Minimal interface compatible with Next.js CookieStore (next/headers)
- * and custom mock cookie jars.
+ * Interface compatible with iron-session's CookieStore, Next.js CookieStore (next/headers),
+ * and custom in-memory mock cookie jars.
  */
 export interface CookieStoreLike {
-  get: (name: string) => { name: string; value: string } | undefined;
-  set: {
-    (name: string, value: string, cookie?: Record<string, unknown>): void;
-    (options: { name: string; value: string; [key: string]: unknown }): void;
-  };
+  get(name: string): { name: string; value: string } | undefined | Promise<{ name: string; value: string } | undefined>;
+  set(
+    nameOrOptions: string | { name: string; value: string; [key: string]: unknown },
+    value?: string
+  ): void | unknown;
+  delete?(name: string): void | unknown;
+  has?(name: string): boolean;
 }
+
+export type CookieStoreTarget =
+  | CookieStoreLike
+  | Awaited<ReturnType<typeof import("next/headers").cookies>>;
+
+type IronSessionCookieFn = (
+  cookies: unknown,
+  options: SessionOptions
+) => Promise<IronSession<SessionData>>;
 
 // =============================================================================
 // Session Management Functions
@@ -137,11 +148,11 @@ export interface CookieStoreLike {
  * @returns IronSession instance wrapping SessionData
  */
 export async function getSession(
-  cookies: CookieStoreLike,
+  cookies: CookieStoreTarget,
   options: SessionOptions = getSessionOptions()
 ): Promise<IronSession<SessionData>> {
-  // iron-session's CookieStore expects get and set methods
-  const session = await getIronSession<SessionData>(cookies as any, options);
+  // Pass to iron-session
+  const session = await (getIronSession as unknown as IronSessionCookieFn)(cookies, options);
   if (session.isLoggedIn === undefined) {
     session.isLoggedIn = false;
   }
@@ -157,7 +168,7 @@ export async function getServerSession(
 ): Promise<IronSession<SessionData>> {
   const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
-  return getSession(cookieStore as unknown as CookieStoreLike, getSessionOptions(customOptions));
+  return getSession(cookieStore, getSessionOptions(customOptions));
 }
 
 /**
@@ -184,7 +195,7 @@ export async function getSessionFromRequest(
  * @param guestCartId - Optional guest cart ID to preserve across auth boundary (PRD 6.5)
  */
 export async function createSession(
-  cookies: CookieStoreLike,
+  cookies: CookieStoreTarget,
   user: SessionUser,
   guestCartId?: string
 ): Promise<IronSession<SessionData>> {
@@ -213,13 +224,76 @@ export async function createSession(
 }
 
 /**
+ * Convenience helper to create authenticated session using Next.js cookies() directly.
+ */
+export async function createCurrentSession(
+  user: SessionUser,
+  guestCartId?: string
+): Promise<IronSession<SessionData>> {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  return createSession(cookieStore, user, guestCartId);
+}
+
+/**
  * Destroys an active session, removing the cookie and clearing all session data.
  */
 export async function destroySession(
-  cookies: CookieStoreLike
+  cookies: CookieStoreTarget
 ): Promise<void> {
   const session = await getSession(cookies);
   session.destroy();
+}
+
+/**
+ * Convenience helper to destroy active session using Next.js cookies() directly.
+ */
+export async function destroyCurrentSession(): Promise<void> {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  return destroySession(cookieStore);
+}
+
+/**
+ * Resolves authenticated user across Cookie session or Authorization: Bearer <seal> header.
+ * Strictly typed with zero assertions.
+ */
+export async function getAuthenticatedUser(
+  req?: Request
+): Promise<SessionUser | null> {
+  // 1. Try reading server session from cookie
+  try {
+    const session = await getServerSession();
+    if (isSessionAuthenticated(session)) {
+      return session.user;
+    }
+  } catch {
+    // next/headers might throw outside of active request scope
+  }
+
+  // 2. Try Authorization: Bearer <seal> header
+  if (req) {
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7).trim();
+      const unsealed = await unsealSessionData<SessionData>(token);
+      if (isSessionAuthenticated(unsealed)) {
+        return unsealed.user;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolves authenticated user ID across Cookie session or Authorization: Bearer <seal> header.
+ */
+export async function getAuthenticatedUserId(
+  req?: Request
+): Promise<string | null> {
+  const user = await getAuthenticatedUser(req);
+  return user ? user.id : null;
 }
 
 // =============================================================================
