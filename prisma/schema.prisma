@@ -1,0 +1,607 @@
+// Production-Level E-Commerce Database Schema
+// Complies with PRD Section 16, Section 9.3 & ADR-002, ADR-003
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// 1. IDENTITY, ROLES & ACCESS CONTROL (PRD Sections 3.2, 3.3, 13)
+// =============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  phone         String?
+  passwordHash  String    @map("password_hash")
+  status        String    @default("ACTIVE") // ACTIVE, SUSPENDED, DELETED
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  customerProfile CustomerProfile?
+  addresses       Address[]
+  userRoles       UserRole[]
+  carts           Cart[]
+  orders          Order[]
+  returnRequests  ReturnRequest[]
+  stockMovements  StockMovement[]
+  auditLogs       AuditLog[]
+  cmsRevisions    CmsRevision[]
+  passwordResets  PasswordResetToken[]
+
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // SUPER_ADMIN, STORE_ADMIN, CATALOG_MANAGER, INVENTORY_MANAGER, ORDER_MANAGER, CUSTOMER_SUPPORT, MARKETING_MANAGER, CONTENT_EDITOR, FINANCE_MANAGER, ANALYST
+  description String?
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. products:create, orders:refund, audit:read
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id      String  @id @default(cuid())
+  userId  String  @map("user_id")
+  roleId  String  @map("role_id")
+  scope   String? @default("GLOBAL")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, scope])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model CustomerProfile {
+  id                        String  @id @default(cuid())
+  userId                    String  @unique @map("user_id")
+  firstName                 String  @map("first_name")
+  lastName                  String  @map("last_name")
+  defaultShippingAddressId  String? @map("default_shipping_address_id")
+  defaultBillingAddressId   String? @map("default_billing_address_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("customer_profiles")
+}
+
+model Address {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  type          String   @default("SHIPPING") // SHIPPING, BILLING
+  recipientName String   @map("recipient_name")
+  streetLine1   String   @map("street_line1")
+  streetLine2   String?  @map("street_line2")
+  city          String
+  state         String
+  postalCode    String   @map("postal_code")
+  countryCode   String   @default("US") @map("country_code")
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// =============================================================================
+// 2. PRODUCT CATALOG & MEDIA (PRD Section 9.1)
+// =============================================================================
+
+model Category {
+  id          String   @id @default(cuid())
+  parentId    String?  @map("parent_id")
+  slug        String   @unique
+  name        String
+  description String?
+  imageUrl    String?  @map("image_url")
+  status      String   @default("ACTIVE") // ACTIVE, INACTIVE
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@index([parentId])
+  @@index([status, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  slug        String   @unique
+  title       String
+  description String
+  status      String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  brandName   String?  @map("brand_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category Category         @relation(fields: [categoryId], references: [id])
+  variants ProductVariant[]
+  media    ProductMedia[]
+
+  @@index([status, categoryId])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@map("products")
+}
+
+model ProductVariant {
+  id             String   @id @default(cuid())
+  productId      String   @map("product_id")
+  sku            String   @unique
+  barcode        String?
+  title          String
+  attributesJson String   @default("{}") @map("attributes_json") // e.g. {"size":"M","color":"Navy"}
+  status         String   @default("ACTIVE") // ACTIVE, DISABLED
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  product      Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  media        ProductMedia[]
+  prices       Price[]
+  inventory    Inventory?
+  cartItems    CartItem[]
+  reservations InventoryReservation[]
+
+  @@index([productId])
+  @@index([barcode])
+  @@map("product_variants")
+}
+
+model ProductMedia {
+  id          String   @id @default(cuid())
+  productId   String   @map("product_id")
+  variantId   String?  @map("variant_id")
+  url         String
+  altText     String   @default("") @map("alt_text")
+  sortOrder   Int      @default(0) @map("sort_order")
+  isThumbnail Boolean  @default(false) @map("is_thumbnail")
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([productId, sortOrder])
+  @@index([variantId])
+  @@map("product_media")
+}
+
+model Price {
+  id                   String    @id @default(cuid())
+  variantId            String    @map("variant_id")
+  currency             String    @default("USD")
+  amountMinor          Int       @map("amount_minor") // Integer minor units (cents)
+  compareAtAmountMinor Int?      @map("compare_at_amount_minor")
+  effectiveFrom        DateTime  @default(now()) @map("effective_from")
+  effectiveTo          DateTime? @map("effective_to")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId, currency, effectiveFrom])
+  @@map("prices")
+}
+
+// =============================================================================
+// 3. INVENTORY & STOCK MOVEMENTS (PRD Sections 9.2, 9.3)
+// =============================================================================
+
+model Inventory {
+  variantId        String   @id @map("variant_id")
+  onHandQuantity   Int      @default(0) @map("on_hand_quantity")
+  reservedQuantity Int      @default(0) @map("reserved_quantity")
+  safetyStock      Int      @default(0) @map("safety_stock")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  variant        ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  stockMovements StockMovement[]
+
+  @@map("inventory")
+}
+
+model StockMovement {
+  id            String   @id @default(cuid())
+  variantId     String   @map("variant_id")
+  quantityDelta Int      @map("quantity_delta") // Positive for restock, negative for deduction
+  reason        String   // RESTOCK, ORDER_CONFIRMED, MANUAL_ADJUSTMENT, RETURN
+  referenceId   String?  @map("reference_id")   // Order ID or Adjustment batch ID
+  actorId       String?  @map("actor_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  inventory Inventory @relation(fields: [variantId], references: [variantId], onDelete: Restrict)
+  actor     User?     @relation(fields: [actorId], references: [id])
+
+  @@index([variantId, createdAt])
+  @@index([actorId])
+  @@map("stock_movements")
+}
+
+model InventoryReservation {
+  id        String   @id @default(cuid())
+  orderId   String?  @map("order_id")
+  cartId    String?  @map("cart_id")
+  variantId String   @map("variant_id")
+  quantity  Int
+  expiresAt DateTime @map("expires_at")
+  status    String   @default("ACTIVE") // ACTIVE, COMMITTED, EXPIRED, RELEASED
+  createdAt DateTime @default(now()) @map("created_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([variantId, status])
+  @@index([expiresAt, status])
+  @@index([cartId])
+  @@index([orderId])
+  @@map("inventory_reservations")
+}
+
+// =============================================================================
+// 4. CART & PROMOTIONS (PRD Sections 6.5, 10)
+// =============================================================================
+
+model Cart {
+  id             String    @id @default(cuid())
+  customerId     String?   @map("customer_id")
+  guestTokenHash String?   @unique @map("guest_token_hash")
+  status         String    @default("ACTIVE") // ACTIVE, MERGED, CONVERTED, ABANDONED
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  customer  User?      @relation(fields: [customerId], references: [id])
+  cartItems CartItem[]
+
+  @@index([customerId, status])
+  @@index([expiresAt, status])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String   @map("cart_id")
+  variantId String   @map("variant_id")
+  quantity  Int      @default(1)
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@unique([cartId, variantId])
+  @@index([variantId])
+  @@map("cart_items")
+}
+
+model Promotion {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  type          String    // PERCENTAGE, FIXED_AMOUNT
+  valueMinor    Int       @map("value_minor") // percentage bps (e.g. 1000 = 10%) or fixed minor cents
+  minOrderMinor Int       @default(0) @map("min_order_minor")
+  maxUses       Int?      @map("max_uses")
+  usageCount    Int       @default(0) @map("usage_count")
+  startsAt      DateTime  @default(now()) @map("starts_at")
+  endsAt        DateTime? @map("ends_at")
+  status        String    @default("ACTIVE") // ACTIVE, DISABLED
+
+  redemptions PromotionRedemption[]
+
+  @@index([status, startsAt, endsAt])
+  @@map("promotions")
+}
+
+model PromotionRedemption {
+  id          String   @id @default(cuid())
+  promotionId String   @map("promotion_id")
+  orderId     String   @map("order_id")
+  customerId  String?  @map("customer_id")
+  redeemedAt  DateTime @default(now()) @map("redeemed_at")
+
+  promotion Promotion @relation(fields: [promotionId], references: [id])
+
+  @@unique([promotionId, orderId])
+  @@index([customerId])
+  @@index([orderId])
+  @@map("promotion_redemptions")
+}
+
+// =============================================================================
+// 5. ORDERS, FULFILLMENT & RETURNS (PRD Sections 7, 8)
+// =============================================================================
+
+model Order {
+  id              String   @id @default(cuid())
+  publicReference String   @unique @map("public_reference") // Non-guessable NanoID, e.g. ORD-2026-X8K9
+  customerId      String?  @map("customer_id")
+  guestEmail      String?  @map("guest_email")
+  status          String   @default("PENDING_PAYMENT")
+  currency        String   @default("USD")
+  subtotalMinor   Int      @map("subtotal_minor")
+  discountMinor   Int      @default(0) @map("discount_minor")
+  shippingMinor   Int      @default(0) @map("shipping_minor")
+  taxMinor        Int      @default(0) @map("tax_minor")
+  totalMinor      Int      @map("total_minor")
+  idempotencyKey  String?  @unique @map("idempotency_key")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  customer        User?                @relation(fields: [customerId], references: [id])
+  orderItems      OrderItem[]
+  orderAddresses  OrderAddress[]
+  statusHistory   OrderStatusHistory[]
+  paymentAttempts PaymentAttempt[]
+  refunds         Refund[]
+  shipments       Shipment[]
+  returnRequests  ReturnRequest[]
+
+  @@index([status, createdAt])
+  @@index([customerId, createdAt])
+  @@index([guestEmail])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String @id @default(cuid())
+  orderId        String @map("order_id")
+  variantId      String @map("variant_id")
+  sku            String
+  productTitle   String @map("product_title")
+  variantTitle   String @map("variant_title")
+  unitPriceMinor Int    @map("unit_price_minor")
+  quantity       Int
+  totalMinor     Int    @map("total_minor")
+  snapshotJson   String @default("{}") @map("snapshot_json")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([sku])
+  @@map("order_items")
+}
+
+model OrderAddress {
+  id            String  @id @default(cuid())
+  orderId       String  @map("order_id")
+  type          String  @default("SHIPPING") // SHIPPING, BILLING
+  recipientName String  @map("recipient_name")
+  streetLine1   String  @map("street_line1")
+  streetLine2   String? @map("street_line2")
+  city          String
+  state         String
+  postalCode    String  @map("postal_code")
+  countryCode   String  @default("US") @map("country_code")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@map("order_addresses")
+}
+
+model OrderStatusHistory {
+  id         String   @id @default(cuid())
+  orderId    String   @map("order_id")
+  fromStatus String   @map("from_status")
+  toStatus   String   @map("to_status")
+  actorId    String?  @map("actor_id")
+  source     String   @default("SYSTEM") // SYSTEM, WEBHOOK, ADMIN_ACTION, CUSTOMER
+  reason     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
+
+model Shipment {
+  id             String    @id @default(cuid())
+  orderId        String    @map("order_id")
+  carrier        String
+  trackingNumber String    @map("tracking_number")
+  trackingUrl    String?   @map("tracking_url")
+  status         String    @default("LABEL_CREATED") // LABEL_CREATED, SHIPPED, IN_TRANSIT, DELIVERED
+  shippedAt      DateTime? @map("shipped_at")
+  deliveredAt    DateTime? @map("delivered_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([trackingNumber])
+  @@map("shipments")
+}
+
+model ReturnRequest {
+  id         String   @id @default(cuid())
+  orderId    String   @map("order_id")
+  customerId String?  @map("customer_id")
+  reason     String
+  status     String   @default("REQUESTED") // REQUESTED, APPROVED, REJECTED, RETURNED, REFUNDED
+  itemsJson  String   @map("items_json") // Details of items to return and quantities
+  reviewedBy String?  @map("reviewed_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customer User? @relation(fields: [customerId], references: [id])
+
+  @@index([orderId])
+  @@index([customerId])
+  @@index([status])
+  @@map("return_requests")
+}
+
+// =============================================================================
+// 6. PAYMENTS, WEBHOOKS & REFUNDS (PRD Section 7.3)
+// =============================================================================
+
+model PaymentAttempt {
+  id                    String   @id @default(cuid())
+  orderId               String   @map("order_id")
+  provider              String   @default("mock") // mock, stripe
+  providerTransactionId String?  @map("provider_transaction_id")
+  amountMinor           Int      @map("amount_minor")
+  currency              String   @default("USD")
+  status                String   @default("PENDING") // PENDING, REQUIRES_ACTION, SUCCEEDED, FAILED
+  errorDetails          String?  @map("error_details")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([provider, providerTransactionId])
+  @@map("payment_attempts")
+}
+
+model PaymentEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String    @map("event_id")
+  payloadHash String    @map("payload_hash")
+  payloadJson String    @map("payload_json")
+  status      String    @default("RECEIVED") // RECEIVED, PROCESSED, FAILED, IGNORED
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([provider, eventId])
+  @@index([status, createdAt])
+  @@map("payment_events")
+}
+
+model Refund {
+  id               String   @id @default(cuid())
+  orderId          String   @map("order_id")
+  paymentAttemptId String?  @map("payment_attempt_id")
+  amountMinor      Int      @map("amount_minor")
+  currency         String   @default("USD")
+  reason           String
+  providerRefundId String?  @map("provider_refund_id")
+  actorId          String?  @map("actor_id")
+  status           String   @default("PENDING") // PENDING, SUCCEEDED, FAILED
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  paymentAttempt PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id])
+
+  @@index([orderId])
+  @@index([paymentAttemptId])
+  @@map("refunds")
+}
+
+// =============================================================================
+// 7. CMS, CONTENT & AUDIT LOGGING (PRD Sections 11, 13.3)
+// =============================================================================
+
+model CmsPage {
+  id                String    @id @default(cuid())
+  slug              String    @unique
+  title             String
+  status            String    @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  currentRevisionId String?   @map("current_revision_id")
+  publishedAt       DateTime? @map("published_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  revisions CmsRevision[]
+
+  @@index([status])
+  @@map("cms_pages")
+}
+
+model CmsRevision {
+  id          String   @id @default(cuid())
+  pageId      String   @map("page_id")
+  contentJson String   @map("content_json") // Rich JSON content block structure
+  authorId    String?  @map("author_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  page   CmsPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  author User?   @relation(fields: [authorId], references: [id])
+
+  @@index([pageId, createdAt])
+  @@map("cms_revisions")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorId      String?  @map("actor_id")
+  action       String   // e.g. "PRODUCT_UPDATE", "STOCK_ADJUSTMENT", "REFUND_APPROVED"
+  targetType   String   @map("target_type") // e.g. "Product", "Inventory", "Order"
+  targetId     String   @map("target_id")
+  requestId    String?  @map("request_id")
+  ipAddress    String?  @map("ip_address")
+  metadataDiff String   @default("{}") @map("metadata_diff") // Redacted JSON diff of changes
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  eventType   String    @map("event_type") // e.g. "ORDER_CONFIRMED", "SEND_EMAIL_CONFIRMATION"
+  payloadJson String    @map("payload_json")
+  status      String    @default("PENDING") // PENDING, PUBLISHED, FAILED
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([status, createdAt])
+  @@map("outbox_events")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash, expiresAt])
+  @@map("password_reset_tokens")
+}
